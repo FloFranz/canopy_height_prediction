@@ -18,7 +18,8 @@ def make_folders():
     data_directories = [
         base_dir / 'data' / 'raw_data' / 'nDSM',
         base_dir / 'data' / 'raw_data' / 'orthomosaics',
-        base_dir / 'data' / 'processed_data',
+        base_dir / 'data' / 'processed_data' / 'nDSM',
+        base_dir / 'data' / 'processed_data' / 'orthomosaics',
         base_dir / 'data' / 'metadata'
     ]
 
