@@ -7,7 +7,7 @@ DIR_MODELS = "models/"
 DIR_METRICS = "metrics/"
 DIR_DATA = "E:/Datasets/FORTRESS/data/datasets/"              # Change this to your dataset root directory
 DIR_DATA_ORTHOMOSAICS = "orthomosaic/"
-DIR_DATA_HHEIGHTMAPS = "nDSM/"
+DIR_DATA_HEIGHTMAPS = "nDSM/"
 
 FILENAME = "{DIR}{NAME}{EXT}"
 
