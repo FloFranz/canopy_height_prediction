@@ -22,7 +22,7 @@ class OrthoMosaics(Dataset):
         random seed to determine which image files to use for a dataset. Should be the same value for 
         train/test/validation sets per model.
     """
-    def __init__(self, path: str, mode: str, split_seed: int, crop_dims: tuple | int) -> None:
+    def __init__(self, path: str, mode: str, split_seed: int) -> None:
         super().__init__()
         assert(mode == "train" or mode == "test" or mode == "validation")
 
@@ -39,9 +39,11 @@ class OrthoMosaics(Dataset):
         rng = Generator().manual_seed(split_seed)
         img_indices = torch.randperm(self.n_images, generator = rng)
 
-        if(mode == "train"):        self.img_indices = img_indices[0 : int(HP_TRAIN_FRACTION * self.n_images)]
-        elif(mode == "test"):       self.img_indices = img_indices[int(HP_TEST_FRACTION * self.n_images) : -1]
-        elif(mode == "validation"): self.img_indices = img_indices[int(HP_TRAIN_FRACTION * self.n_images) : int(HP_TEST_FRACTION * self.n_images)]
+        f_train_val = int(HP_TRAIN_FRACTION * self.n_images)
+        f_val_test  = int(HP_VAL_FRACTION   * self.n_images) + f_train_val
+        if(mode == "train"):        self.img_indices = img_indices[0 : f_train_val]
+        elif(mode == "validation"): self.img_indices = img_indices[f_train_val : f_val_test]
+        elif(mode == "test"):       self.img_indices = img_indices[f_val_test : ]
         else:                       raise ValueError("Mode should be \"train\", \"test\", or \"validation\".")
         
 
@@ -74,10 +76,11 @@ class OrthoMosaics(Dataset):
         # This has as main benefit that data augmentation operations will 
         # have effect on the height map as well, without having to resort to 
         # tricks to apply the same random operation to mosaic and ndsm seperately.
-        self.ortho_ndsm = torch.zeros((self.n_images, 4, IMG_HEIGHT, IMG_WIDTH), dtype = torch.float16)
-        for i in self.img_indices:
-            ortho = rxr.open_rasterio(path + "orthomosaics/" + self.images[i]).to_numpy()
-            ndsm  = rxr.open_rasterio(path + "nDSM/" + self.images[i]).to_numpy()
+        self.ortho_ndsm = torch.zeros((self.img_indices.shape[0], 4, IMG_HEIGHT, IMG_WIDTH), dtype = torch.float16)
+
+        for i, ii in enumerate(self.img_indices):
+            ortho = rxr.open_rasterio(path + "orthomosaics/" + self.images[ii]).to_numpy()
+            ndsm  = rxr.open_rasterio(path + "nDSM/" + self.images[ii]).to_numpy()
 
             self.ortho_ndsm[i,0:3,:,:] = torch.tensor(ortho / IMG_ORTHO_SCALEFACTOR, dtype = torch.float16)
             self.ortho_ndsm[i,3,:,:]   = torch.tensor(ndsm  / IMG_NDSM_SCALEFACTOR,  dtype = torch.float16)
@@ -119,4 +122,4 @@ class OrthoMosaics(Dataset):
         """
         Returns the size of the dataset in number of samples.
         """
-        return self.n_images
+        return self.img_indices.shape[0]

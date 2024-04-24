@@ -43,20 +43,21 @@ def train(
     
     model.train()
     n_batches = len(loader)
-    for k, (img, target) in enumerate(loader):
-        img = img.to(DEVICE).float()
-        target = target.to(DEVICE).float()
+    for k, img in enumerate(loader):
+        # img = img.to(DEVICE).float()
         optimizer.zero_grad()
         
         # Forward
-        pred = model(img)
+        target, pred = model(img)
         
         loss = model.loss_func(pred, target)
         losses.append(loss.item())
 
         # Backward
         loss.backward()
+        model.float()
         optimizer.step()
+        model.half()
 
         print_train_progress(epoch, epochs, k, n_batches, loss.item())
     return losses
@@ -72,12 +73,11 @@ def validate(
     model.eval()
 
     n_batches = len(loader)
-    for k, (img, target) in enumerate(loader):
-        img = img.to(DEVICE).float()
-        target = target.to(DEVICE).float()
+    for k, img in enumerate(loader):
+        # img = img.to(DEVICE).float()
         
         # Forward
-        pred = model(img)
+        target, pred = model(img)
         
         loss = model.loss_func(pred, target)
         losses.append(loss.item())
@@ -93,12 +93,11 @@ def test(
     
     model.eval()
 
-    for k, (img, target) in enumerate(loader):
-        img = img.to(DEVICE).float()
-        target = target.to(DEVICE).float()
+    for k, img in enumerate(loader):
+        # img = img.to(DEVICE).float()
         
         # Forward
-        pred = model(img)
+        target, pred = model(img)
         
         loss = model.loss_func(pred, target)
 
@@ -157,7 +156,7 @@ def train_model(
     else:
         # Generate a new model from arch_name
         architecture = ARCHITECTURES[arch_name]
-        model = architecture().to(DEVICE)
+        model = architecture(image_crop).to(DEVICE)
 
         # Generate metric file
         report = {
@@ -178,9 +177,9 @@ def train_model(
         current_epochs = 0
     
     # Load data
-    train_data = OrthoMosaics(DIR_DATA, mode = "train", split_seed = split_seed)
-    val_data = OrthoMosaics(DIR_DATA, mode = "validation", split_seed = split_seed)
-    test_data = OrthoMosaics(DIR_DATA, mode = "test", split_seed = split_seed)
+    train_data   = OrthoMosaics(DIR_DATA + "processed_data/", mode = "train", split_seed = split_seed)
+    val_data     = OrthoMosaics(DIR_DATA + "processed_data/", mode = "validation", split_seed = split_seed)
+    test_data    = OrthoMosaics(DIR_DATA + "processed_data/", mode = "test", split_seed = split_seed)
 
     train_loader = DataLoader(train_data, batch_size = batch_size, shuffle = True)
     val_loader   = DataLoader(val_data,   batch_size = batch_size, shuffle = True)
@@ -205,7 +204,7 @@ def train_model(
             if(lr_schedule):
                 scheduler.step()
             
-            val_losses = validate(val_loader, model, batch_size, i, epochs)
+            val_losses = validate(val_loader, model, i, epochs)
 
             report_epoch = {
                 "epoch": i,

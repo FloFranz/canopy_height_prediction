@@ -1,9 +1,26 @@
 import torch
 import torch.nn as nn
-from torch.nn import Module, Conv2d, MaxPool2d, ConvTranspose2d, ModuleList
-from torchvision.transforms import CenterCrop
+from torch.nn import Module, Conv2d, MaxPool2d, ConvTranspose2d, ModuleList, MSELoss
+from torchvision.transforms.v2 import RandomCrop, RandomVerticalFlip, RandomHorizontalFlip
+from torchvision.transforms.v2 import CenterCrop
 from torch.nn.functional import relu, one_hot, tanh, softmax, softmin, interpolate
+
 from params import *
+
+class Augmentation(Module):
+	def __init__(self, cropsize) -> None:
+		super().__init__()
+		self.cropsize = cropsize
+		self.aug_crop = RandomCrop(cropsize)
+		self.aug_flip_h = RandomHorizontalFlip()
+		self.aug_flip_v = RandomVerticalFlip()
+	
+	def forward(self, x):
+		x = self.aug_crop(x)
+		x = self.aug_flip_h(x)
+		x = self.aug_flip_v(x)
+		return x
+
 
 # ---------------- ---------------- #
 # Code below from https://pyimagesearch.com/2021/11/08/u-net-training-image-segmentation-models-in-pytorch/
@@ -17,7 +34,9 @@ class Block(Module):
         
 	def forward(self, x):
 		# apply CONV => RELU => CONV block to the inputs and return it
-		return self.conv2(relu(self.conv1(x)))
+		x = relu(self.conv1(x))
+		x = self.conv2(x)
+		return x
 
 class Encoder(Module):
 	def __init__(self, channels=(3, 16, 32, 64)):
@@ -38,6 +57,7 @@ class Encoder(Module):
 			# pass the inputs through the current encoder block, store
 			# the outputs, and then apply maxpooling on the output
 			x = block(x)
+			
 			blockOutputs.append(x)
 			x = self.pool(x)
 		
@@ -85,39 +105,56 @@ class Decoder(Module):
 class UNet(Module):
 	def __init__(
 			self, 
-            image_dim,
-			enc_channels=(3, 16, 32, 64),
-            dec_channels=(64, 32, 16),
+            image_dim
 		):
 		super().__init__()
+
+		self.aug = Augmentation(image_dim)
+
 		# initialize the encoder and decoder
-		self.encoder = Encoder(enc_channels)
-		self.decoder = Decoder(dec_channels)
-		
+		self.encoder = Encoder((3, 8, 16, 32))
+		self.decoder = Decoder((32, 16, 8))
+		self.head    = Conv2d(8, 1, 1)
+
 		self.image_dim = image_dim
 		
+		test_img = torch.zeros((1, 3, *image_dim))
+		x = self.encoder(test_img)
+		x = self.decoder(x[::-1][0], x[::-1][1:])
+		self.target_dim = x.shape[2:]
+		self.target_cropper = CenterCrop(self.target_dim)
+		
+		self.loss_func = MSELoss()
+		
 	def forward(self, x):
+		# Input tensor x contains both input and target, which will be split after augmentation.
+		# Augment
+		x = self.aug(x)
+		aug_target = x[:, 3:4, :, :]
+		aug_target = self.target_cropper(aug_target)
+		x = x[:, 0:3, :, :]
+
 		# grab the features from the encoder
-		enc_features = self.encoder(x)
+		x = self.encoder(x)
 		
 		# pass the encoder features through decoder making sure that
 		# their dimensions are suited for concatenation
-		dec_features = self.decoder(
-			enc_features[::-1][0],
-			enc_features[::-1][1:]
+		x = self.decoder(
+			x[::-1][0],
+			x[::-1][1:]
 		)
+
+		x = self.head(x)
 		
-		return dec_features
+		return aug_target, x
 # ---------------- ---------------- #
 
 
 class TreeNetV1(nn.Module):
-
-    def __init__(self, *args, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
-
+    def __init__(self, image_crop) -> None:
+        super().__init__()
+        self.image_crop = image_crop
         # Define architecture layers here
-        pass
 
     def forward(self, x):
         return x

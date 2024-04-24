@@ -3,6 +3,10 @@ Data and train parameters.
 """
 import torch
 
+# Set floating point precision to half to 
+# allow for entire dataset to fit in memory
+torch.set_default_dtype(torch.float16)
+
 DIR_MODELS = "models/"
 DIR_METRICS = "metrics/"
 DIR_DATA = "E:/Datasets/FORTRESS/data/datasets/"              # Change this to your dataset root directory
@@ -20,7 +24,8 @@ PROGRESS_BAR_VALIDATE = 6
 
 # Hyperparameters
 HP_TRAIN_FRACTION = 0.7
-HP_TEST_FRACTION = 0.1
+HP_TEST_FRACTION  = 0.1
+HP_VAL_FRACTION   = 0.2
 HP_EPOCHS = 5
 HP_BATCH_SIZE = 20
 HP_LEARNING_RATE = 1e-4
