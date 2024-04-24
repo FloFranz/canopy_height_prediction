@@ -6,14 +6,15 @@
 
 from pathlib import Path
 
-def make_folders():
+def make_folders(base_dir = Path.cwd().parent):
     
     # 01 - setup working environment
     # --------------------------------
 
     # create directory called 'data' with subdirectories
     # 'raw_data', 'processed_data', and 'metadata'
-    base_dir = Path.cwd().parent
+    # base_dir = Path.cwd().parent
+    # base_dir = Path(root_dir)
 
     data_directories = [
         base_dir / 'data' / 'raw_data' / 'nDSM',
