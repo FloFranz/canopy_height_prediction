@@ -11,7 +11,7 @@ from torchvision.transforms.v2 import RandomCrop, CenterCrop
 from params import *
 
 
-def plot_prediction(name):
+def plot_prediction(name, n_images, save_img = False):
     """
     Load a random image from the dataset and plot the 
     true height map and the model prediction.
@@ -20,6 +20,8 @@ def plot_prediction(name):
     --------
     name : str
         Name of the model to be evaluated.
+    n_images : int
+        Number of images to plot.
     """
     model_exists = (name + ".pt") in os.listdir(DIR_MODELS) and (name + ".json") in os.listdir(DIR_METRICS)
     
@@ -46,40 +48,50 @@ def plot_prediction(name):
     images = list(set(inputs).union(set(targets)))
 
     rng = Generator()
-    img_index = torch.randint(0, len(images), (1,)).item()
+    img_index = torch.randint(0, len(images), (n_images,))
     
-    ortho_ndsm = torch.zeros((1, 4, IMG_HEIGHT, IMG_WIDTH))
-    ortho = rxr.open_rasterio(DIR_DATA + "processed_data/orthomosaics/" + images[img_index]).to_numpy()
-    ndsm  = rxr.open_rasterio(DIR_DATA + "processed_data/nDSM/" + images[img_index]).to_numpy()
-    
-    ortho_ndsm[0,0:3,:,:] = torch.tensor(ortho / IMG_ORTHO_SCALEFACTOR)
-    ortho_ndsm[0,3,:,:]   = torch.tensor(ndsm   / IMG_NDSM_SCALEFACTOR) 
+    ortho_ndsm = torch.zeros((n_images, 4, IMG_HEIGHT, IMG_WIDTH))
+    for i, ii in enumerate(img_index):
+        ortho = rxr.open_rasterio(DIR_DATA + "processed_data/orthomosaics/" + images[ii]).to_numpy()
+        ndsm  = rxr.open_rasterio(DIR_DATA + "processed_data/nDSM/" + images[ii]).to_numpy()
+        
+        ortho_ndsm[i,0:3,:,:] = torch.tensor(ortho / IMG_ORTHO_SCALEFACTOR)
+        ortho_ndsm[i,3,:,:]   = torch.tensor(ndsm   / IMG_NDSM_SCALEFACTOR) 
     
     # make prediction
     ortho_ndsm = input_cropper(ortho_ndsm)
     target, pred = model(ortho_ndsm)
 
     # Move color channels to first dimension
-    ortho  = size_matcher(ortho_ndsm[0,0:3,:,:])
-    ortho  = np.moveaxis(ortho.numpy(), 0, 2)
-    pred   = np.moveaxis(pred[0].detach().numpy(), 0, 2) * IMG_NDSM_SCALEFACTOR
-    target = np.moveaxis(target[0].detach().numpy(), 0, 2) * IMG_NDSM_SCALEFACTOR
+    ortho  = size_matcher(ortho_ndsm[:,0:3,:,:])
+    ortho  = np.moveaxis(ortho.numpy(), 1, 3)
+    pred   = np.moveaxis(pred.detach().numpy(), 1, 3) * IMG_NDSM_SCALEFACTOR
+    target = np.moveaxis(target.detach().numpy(), 1, 3) * IMG_NDSM_SCALEFACTOR
 
     # (pred).detach().numpy()
     # Plotting
-    fig, (ax_ortho, ax_pred, ax_ndsm) = plt.subplots(ncols = 3)
+    fig, ax = plt.subplots(nrows = 3, ncols = n_images)
+    ax[0, 0].set_title("Orthomosaic")
+    ax[1, 0].set_title("Prediction")
+    ax[2, 0].set_title("Height")
 
-    ax_ortho.imshow(ortho.astype(np.float32))
-    ax_ortho.set_title("Orthomosaic")
+    for i in range(n_images):
+        ax[0, i].imshow(ortho[i].astype(np.float32))
+        ax[0, i].get_xaxis().set_visible(False)
+        ax[0, i].get_yaxis().set_visible(False)
 
-    ax_pred.imshow(pred.astype(np.float32))
-    ax_pred.set_title("Prediction")
+        ax[1, i].imshow(pred[i].astype(np.float32))
+        ax[1, i].get_xaxis().set_visible(False)
+        ax[1, i].get_yaxis().set_visible(False)
 
-    ax_ndsm.imshow(target.astype(np.float32))
-    ax_ndsm.set_title("Height")
+        ax[2, i].imshow(target[i].astype(np.float32))
+        ax[2, i].get_xaxis().set_visible(False)
+        ax[2, i].get_yaxis().set_visible(False)
 
     fig.set_size_inches(14, 8)
-    fig.savefig(FILENAME.format(DIR = DIR_METRICS, NAME = name, EXT = ".pdf"))
+    fig.tight_layout()
+    if(save_img):
+        fig.savefig(FILENAME.format(DIR = DIR_METRICS, NAME = name, EXT = ".pdf"))
     plt.show()
 
 

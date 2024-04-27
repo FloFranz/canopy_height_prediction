@@ -26,9 +26,9 @@ def train(name):
 
 if __name__ == "__main__":
     model = "U-Net-v8"
-    train(model)
-    plot_loss_evaluation(model)
-    plot_prediction(model)
+    # train(model)
+    # plot_loss_evaluation(model)
+    plot_prediction(model, 5)
     # print_loss_report(model)
     # test_model(model)
     # generate_metrics(model)
