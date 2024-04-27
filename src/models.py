@@ -21,6 +21,14 @@ class Augmentation(Module):
 		x = self.aug_flip_v(x)
 		return x
 
+class Cropper(Module):
+	def __init__(self, cropsize) -> None:
+		super().__init__()
+		self.cropsize = cropsize
+		self.cropper = CenterCrop(cropsize)
+	
+	def forward(self, x):
+		return self.cropper(x)
 
 # ---------------- ---------------- #
 # Code below from https://pyimagesearch.com/2021/11/08/u-net-training-image-segmentation-models-in-pytorch/
@@ -109,15 +117,16 @@ class UNet(Module):
 		):
 		super().__init__()
 
-		self.aug = Augmentation(image_dim)
+		# self.aug = Augmentation(image_dim)
 
 		# initialize the encoder and decoder
 		self.encoder = Encoder((3, 8, 16, 32))
 		self.decoder = Decoder((32, 16, 8))
 		self.head    = Conv2d(8, 1, 1)
 
-		self.image_dim = image_dim
+		# self.image_dim = image_dim
 		
+		# Determine the output size by pushing a dummy image through the model.
 		test_img = torch.zeros((1, 3, *image_dim))
 		x = self.encoder(test_img)
 		x = self.decoder(x[::-1][0], x[::-1][1:])
@@ -129,9 +138,12 @@ class UNet(Module):
 	def forward(self, x):
 		# Input tensor x contains both input and target, which will be split after augmentation.
 		# Augment
-		x = self.aug(x)
-		aug_target = x[:, 3:4, :, :]
-		aug_target = self.target_cropper(aug_target)
+		# x = self.aug(x)
+		
+		# UNet produces smaller outputs than inputs, so crop target to output size
+  		# so it matches the dimensions of the output..
+		target = self.target_cropper(x[:, 3:4, :, :])
+		
 		x = x[:, 0:3, :, :]
 
 		# grab the features from the encoder
@@ -146,8 +158,58 @@ class UNet(Module):
 
 		x = self.head(x)
 		
-		return aug_target, x
+		return target, x
 # ---------------- ---------------- #
+
+class UNetV2(Module):
+	def __init__(
+			self, 
+            image_dim
+		):
+		super().__init__()
+
+		# self.aug = Augmentation(image_dim)
+
+		# initialize the encoder and decoder
+		self.encoder = Encoder((3, 8, 16, 32, 64))
+		self.decoder = Decoder((64, 32, 16, 8))
+		self.head    = Conv2d(8, 1, 1)
+
+		# self.image_dim = image_dim
+		
+		# Determine the output size by pushing a dummy image through the model.
+		test_img = torch.zeros((1, 3, *image_dim))
+		x = self.encoder(test_img)
+		x = self.decoder(x[::-1][0], x[::-1][1:])
+		self.target_dim = x.shape[2:]
+		self.target_cropper = CenterCrop(self.target_dim)
+		
+		self.loss_func = MSELoss()
+		
+	def forward(self, x):
+		# Input tensor x contains both input and target, which will be split after augmentation.
+		# Augment
+		# x = self.aug(x)
+		
+		# UNet produces smaller outputs than inputs, so crop target to output size
+  		# so it matches the dimensions of the output..
+		target = self.target_cropper(x[:, 3:4, :, :])
+		
+		x = x[:, 0:3, :, :]
+
+		# grab the features from the encoder
+		x = self.encoder(x)
+		
+		# pass the encoder features through decoder making sure that
+		# their dimensions are suited for concatenation
+		x = self.decoder(
+			x[::-1][0],
+			x[::-1][1:]
+		)
+
+		x = self.head(x)
+		
+		return target, x
 
 
 class TreeNetV1(nn.Module):
@@ -162,5 +224,6 @@ class TreeNetV1(nn.Module):
 
 ARCHITECTURES = {
     "TreeNetV1": TreeNetV1,
-	"UNet": UNet
+	"UNet": UNet,
+	"UNetV2": UNetV2
 }
