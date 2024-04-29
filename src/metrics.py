@@ -11,7 +11,7 @@ from torchvision.transforms.v2 import RandomCrop, CenterCrop
 from params import *
 
 
-def plot_prediction(name, n_images, save_img = False):
+def plot_prediction(name, n_images, save_img = False, seed = None):
     """
     Load a random image from the dataset and plot the 
     true height map and the model prediction.
@@ -37,7 +37,7 @@ def plot_prediction(name, n_images, save_img = False):
         return
     
     # Random area cropper.
-    input_cropper = RandomCrop(report["params"]["input shape"])
+    input_cropper = CenterCrop(report["params"]["input shape"])
     
     # Cropper to match input image size to output of model.
     size_matcher =  CenterCrop(model.target_dim)
@@ -45,11 +45,14 @@ def plot_prediction(name, n_images, save_img = False):
     # Load a random image
     inputs  = [image for image in os.listdir(DIR_DATA + "processed_data/orthomosaics/") if image not in EXCLUSION_LIST]
     targets = [image for image in os.listdir(DIR_DATA + "processed_data/nDSM/") if image not in EXCLUSION_LIST]
-    images = list(set(inputs).union(set(targets)))
+    images  = [image for image in inputs if image in targets]
 
-    rng = Generator()
-    img_index = torch.randint(0, len(images), (n_images,))
-    
+    if(seed is not None):
+        rng = Generator().manual_seed(seed)
+    else:
+        rng = Generator()
+    img_index = torch.randint(0, len(images), (n_images,), generator = rng)
+    print 
     ortho_ndsm = torch.zeros((n_images, 4, IMG_HEIGHT, IMG_WIDTH))
     for i, ii in enumerate(img_index):
         ortho = rxr.open_rasterio(DIR_DATA + "processed_data/orthomosaics/" + images[ii]).to_numpy()
@@ -71,6 +74,8 @@ def plot_prediction(name, n_images, save_img = False):
     # (pred).detach().numpy()
     # Plotting
     fig, ax = plt.subplots(nrows = 3, ncols = n_images)
+    if(n_images == 1): ax = np.reshape(ax, (ax.shape[0], 1))
+
     ax[0, 0].set_title("Orthomosaic")
     ax[1, 0].set_title("Prediction")
     ax[2, 0].set_title("Height")
@@ -91,10 +96,11 @@ def plot_prediction(name, n_images, save_img = False):
     fig.set_size_inches(14, 8)
     fig.tight_layout()
     if(save_img):
-        fig.savefig(FILENAME.format(DIR = DIR_METRICS, NAME = name, EXT = ".pdf"))
+        fig.savefig(FILENAME.format(DIR = DIR_METRICS, NAME = name + "_predictions", EXT = ".pdf"))
     plt.show()
 
-
+def compare_predictions(names: list, save_img = False):
+    pass
 
 
 

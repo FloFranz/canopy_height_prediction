@@ -184,13 +184,15 @@ def train_model(
                 "epochs": 0,
                 "learning rate": lr,
                 "n_params": np.sum(p.numel() for p in model.parameters() if p.requires_grad),
-                "split seed": split_seed
+                "split seed": split_seed,
+                "lr schedule": lr_schedule
             },
             "model structure": model.__str__(),
             "train":[],
             "evaluation":[]
         }
         current_epochs = 0
+
     
     # Load data
     train_data   = OrthoMosaics(DIR_DATA + "processed_data/", mode = "train", split_seed = split_seed)
@@ -204,7 +206,7 @@ def train_model(
     # Optimizer
     if(lr_schedule):
         optimizer = optim.Adam(model.parameters(), lr, weight_decay=HP_WEIGHT_DECAY)
-        scheduler = optim.lr_scheduler.ExponentialLR(optimizer, 0.93, current_epochs - 1)
+        scheduler = optim.lr_scheduler.ExponentialLR(optimizer, lr_schedule, current_epochs - 1)
     else:
         optimizer = optim.Adam(model.parameters(), lr, weight_decay=HP_WEIGHT_DECAY)
 
