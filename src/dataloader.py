@@ -30,8 +30,8 @@ class OrthoMosaics(Dataset):
         inputs  = [image for image in os.listdir(path + "orthomosaics/") if image not in EXCLUSION_LIST]
         targets = [image for image in os.listdir(path + "nDSM/") if image not in EXCLUSION_LIST]
 
-        # Check for missing files
-        self.images = list(set(inputs).union(set(targets)))
+        # Check that both orthomosaic and ndsm are present
+        self.images = [image for image in inputs if image in targets]
         
         self.n_images = len(self.images)
 
@@ -75,7 +75,7 @@ class OrthoMosaics(Dataset):
         # and the last channel is the ndsm height map.
         # This has as main benefit that data augmentation operations will 
         # have effect on the height map as well, without having to resort to 
-        # tricks to apply the same random operation to mosaic and ndsm seperately.
+        # tricks to apply the same random operation to mosaic and ndsm separately.
         self.ortho_ndsm = torch.zeros((self.img_indices.shape[0], 4, IMG_HEIGHT, IMG_WIDTH), dtype = torch.float16)
 
         for i, ii in enumerate(self.img_indices):
