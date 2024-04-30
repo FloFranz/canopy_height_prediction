@@ -11,7 +11,7 @@ import os
 
 from params import *
 from src.utils import print_train_progress, print_validation_progress, print_final
-from src.models import ARCHITECTURES
+from src.models import ARCHITECTURES, Augmentation, Cropper
 from src.dataloader import OrthoMosaics
 
 
@@ -35,9 +35,10 @@ class EarlyStopping():
 def train(
     loader: DataLoader, 
     model: Module,
+    preprocessing: Module,
     optimizer,
     epoch,
-    epochs
+    epochs,
 ):
     losses = []
     
@@ -46,6 +47,11 @@ def train(
     for k, img in enumerate(loader):
         # img = img.to(DEVICE).float()
         optimizer.zero_grad()
+        
+        img = preprocessing(img)
+            # img = aug[:, 0:3, :, :]
+            # target = aug[:, 3:4, :, :]
+            
         
         # Forward
         target, pred = model(img)
@@ -65,6 +71,7 @@ def train(
 def validate(
     loader: DataLoader, 
     model: Module,
+    preprocessing: Module,
     epoch,
     epochs
 ):
@@ -76,6 +83,7 @@ def validate(
     for k, img in enumerate(loader):
         # img = img.to(DEVICE).float()
         
+        img = preprocessing(img)
         # Forward
         target, pred = model(img)
         
@@ -87,7 +95,8 @@ def validate(
 
 def test(
     loader: DataLoader, 
-    model: Module
+    model: Module,
+    preprocessing: Module
 ):
     losses = []
     
@@ -96,6 +105,7 @@ def test(
     for k, img in enumerate(loader):
         # img = img.to(DEVICE).float()
         
+        img = preprocessing(img)
         # Forward
         target, pred = model(img)
         
@@ -143,10 +153,14 @@ def train_model(
     if(model_exists):
         # load model
         model = torch.load(DIR_MODELS + name + ".pt").to(DEVICE)
+
         # Load metric file
         with open(FILENAME.format(DIR = DIR_METRICS, NAME = name, EXT = ".json"), 'r') as f:
             report = json.load(f)
         
+        augmentation = Augmentation(report["input shape"]).to(DEVICE)
+        cropper      = Cropper(report["input shape"]).to(DEVICE)
+
         # Resume training
         current_epochs = report["params"]["epochs"]
         if(current_epochs >= epochs): 
@@ -157,6 +171,8 @@ def train_model(
         # Generate a new model from arch_name
         architecture = ARCHITECTURES[arch_name]
         model = architecture(image_crop).to(DEVICE)
+        augmentation = Augmentation(image_crop).to(DEVICE)
+        cropper      = Cropper(image_crop).to(DEVICE)
 
         # Generate metric file
         report = {
@@ -168,13 +184,15 @@ def train_model(
                 "epochs": 0,
                 "learning rate": lr,
                 "n_params": np.sum(p.numel() for p in model.parameters() if p.requires_grad),
-                "split seed": split_seed
+                "split seed": split_seed,
+                "lr schedule": lr_schedule
             },
             "model structure": model.__str__(),
             "train":[],
             "evaluation":[]
         }
         current_epochs = 0
+
     
     # Load data
     train_data   = OrthoMosaics(DIR_DATA + "processed_data/", mode = "train", split_seed = split_seed)
@@ -188,7 +206,7 @@ def train_model(
     # Optimizer
     if(lr_schedule):
         optimizer = optim.Adam(model.parameters(), lr, weight_decay=HP_WEIGHT_DECAY)
-        scheduler = optim.lr_scheduler.ExponentialLR(optimizer, 0.93, current_epochs - 1)
+        scheduler = optim.lr_scheduler.ExponentialLR(optimizer, lr_schedule, current_epochs - 1)
     else:
         optimizer = optim.Adam(model.parameters(), lr, weight_decay=HP_WEIGHT_DECAY)
 
@@ -199,12 +217,12 @@ def train_model(
         # Repeat training for epochs.
         for i in range(current_epochs, epochs):
             # Train
-            train_losses = train(train_loader, model, optimizer, i, epochs)
+            train_losses = train(train_loader, model, augmentation, optimizer, i, epochs)
 
             if(lr_schedule):
                 scheduler.step()
             
-            val_losses = validate(val_loader, model, i, epochs)
+            val_losses = validate(val_loader, model, cropper, i, epochs)
 
             report_epoch = {
                 "epoch": i,
@@ -233,7 +251,7 @@ def train_model(
                     break
 
         # Test
-        losses = test(test_loader, model)
+        losses = test(test_loader, model, cropper)
 
         report["test"] = {
             "test_loss": losses
