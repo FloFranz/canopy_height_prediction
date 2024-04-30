@@ -211,6 +211,108 @@ class UNetV2(Module):
 		
 		return target, x
 
+class UNetV3(Module):
+	def __init__(
+			self, 
+            image_dim
+		):
+		super().__init__()
+
+		# self.aug = Augmentation(image_dim)
+
+		# initialize the encoder and decoder
+		self.encoder = Encoder((3, 8, 16))
+		self.decoder = Decoder((16, 8))
+		self.head    = Conv2d(8, 1, 1)
+
+		# self.image_dim = image_dim
+		
+		# Determine the output size by pushing a dummy image through the model.
+		test_img = torch.zeros((1, 3, *image_dim))
+		x = self.encoder(test_img)
+		x = self.decoder(x[::-1][0], x[::-1][1:])
+		self.target_dim = x.shape[2:]
+		self.target_cropper = CenterCrop(self.target_dim)
+		
+		self.loss_func = MSELoss()
+		
+	def forward(self, x):
+		# Input tensor x contains both input and target, which will be split after augmentation.
+		# Augment
+		# x = self.aug(x)
+		
+		# UNet produces smaller outputs than inputs, so crop target to output size
+  		# so it matches the dimensions of the output..
+		target = self.target_cropper(x[:, 3:4, :, :])
+		
+		x = x[:, 0:3, :, :]
+
+		# grab the features from the encoder
+		x = self.encoder(x)
+		
+		# pass the encoder features through decoder making sure that
+		# their dimensions are suited for concatenation
+		x = self.decoder(
+			x[::-1][0],
+			x[::-1][1:]
+		)
+
+		x = self.head(x)
+		
+		return target, x
+
+class UNetV4(Module):
+	def __init__(
+			self, 
+            image_dim
+		):
+		super().__init__()
+
+		# self.aug = Augmentation(image_dim)
+
+		# initialize the encoder and decoder
+		self.encoder = Encoder((3, 4, 8))
+		self.decoder = Decoder((8, 4))
+		self.head    = Conv2d(4, 1, 1)
+
+		# self.image_dim = image_dim
+		
+		# Determine the output size by pushing a dummy image through the model.
+		test_img = torch.zeros((1, 3, *image_dim))
+		x = self.encoder(test_img)
+		x = self.decoder(x[::-1][0], x[::-1][1:])
+		self.target_dim = x.shape[2:]
+		self.target_cropper = CenterCrop(self.target_dim)
+		
+		self.loss_func = MSELoss()
+		
+	def forward(self, x):
+		# Input tensor x contains both input and target, which will be split after augmentation.
+		# Augment
+		# x = self.aug(x)
+		
+		# UNet produces smaller outputs than inputs, so crop target to output size
+  		# so it matches the dimensions of the output..
+		target = self.target_cropper(x[:, 3:4, :, :])
+		
+		x = x[:, 0:3, :, :]
+
+		# grab the features from the encoder
+		x = self.encoder(x)
+		
+		# pass the encoder features through decoder making sure that
+		# their dimensions are suited for concatenation
+		x = self.decoder(
+			x[::-1][0],
+			x[::-1][1:]
+		)
+
+		x = self.head(x)
+		
+		return target, x
+
+
+
 
 class TreeNetV1(nn.Module):
     def __init__(self, image_crop) -> None:
@@ -225,5 +327,7 @@ class TreeNetV1(nn.Module):
 ARCHITECTURES = {
     "TreeNetV1": TreeNetV1,
 	"UNet": UNet,
-	"UNetV2": UNetV2
+	"UNetV2": UNetV2,
+	"UNetV3": UNetV3,
+	"UNetV4": UNetV4
 }
